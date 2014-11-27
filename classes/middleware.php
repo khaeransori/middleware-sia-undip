@@ -4,19 +4,24 @@
 */
 class Middleware
 {
-	private $_cookie;
 	private $_cookie_path;
+	private static $_instance;
 
 	const BASE_URL 		= 'https://sift.undip.ac.id/';
 	const LOGIN_URL 	= 'login.php';
 	const CAPTCHA_URL 	= 'securimage/securimage_show.php';
 
-	function __construct() {
-		$this->_cookie 		= new Cookies();
-		$this->_cookie_path = $this->_cookie->getCookiePath();
+	function __construct($path) {
+		$this->_cookie_path = $path;
+	}
 
-		// temporary hack for windows based server
-		$this->_cookie_path = realpath(dirname(__FILE__) . '/..') . $this->_cookie_path;
+	public static function checkInstance($path)
+	{
+		if (is_null(self::$_instance)) {
+			self::$_instance = new Middleware($path);
+		}
+
+		return self::$_instance;
 	}
 
 	public function open($url, $init = false, $method = null, $data = null, $binary = false)
@@ -38,9 +43,9 @@ class Middleware
 		);
 		
 		if ($init) {
-			$options[CURLOPT_COOKIEJAR] 	 = $this->_cookie_path;
+			$options[CURLOPT_COOKIEJAR] 	 = realpath(dirname(__FILE__) . '/..') . $this->_cookie_path;
 		} else {
-			$options[CURLOPT_COOKIEFILE] 	 = $this->_cookie_path;			
+			$options[CURLOPT_COOKIEFILE] 	 = realpath(dirname(__FILE__) . '/..') . $this->_cookie_path;
 		}
 
 		if ($method == 'post') {
@@ -97,6 +102,22 @@ class Middleware
     	// jadikan 1 jalur koneksi
 	    $response  = $this->open(self::LOGIN_URL, false, 'post', $data);
 
-	    return $response;
+	    $error 	   = false;
+	    $data      = '';
+
+	    // cek apakah ada error atau tidak
+	    if (strpos($response, 'error')) {
+	    	$error = true;
+	    } else {
+	    	$service = new Services();
+	    	$data    = $service->getCleanNameURL($response);
+	    }
+
+	    $response = array(
+	    	'error' => $error, 
+	    	'data'  => $data
+	    );
+
+	    return json_encode($response);
     }
 }
